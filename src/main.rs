@@ -1,7 +1,7 @@
+use std::fs;
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
-use std::fs;
 use std::thread;
 use std::time::Duration;
 
@@ -12,7 +12,7 @@ fn main() {
         let stream = stream.unwrap();
 
         thread::spawn(|| {
-            handle_connection(stream);  
+            handle_connection(stream);
         });
     }
 }
