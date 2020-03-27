@@ -10,16 +10,18 @@ fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     let pool = ThreadPool::new(4);
 
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(2) {
         let stream = stream.unwrap();
 
-        pool.execute(|| {
-            handle_connection(stream);
+        pool.execute(|worker_id: usize| {
+            handle_connection(stream, worker_id);
         });
     }
+
+    println!("[GLOBAL] Fechando o servidor...");
 }
 
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(mut stream: TcpStream, worker_id: usize) {
     let mut buffer = [0; 512];
     let buffer_size = stream.read(&mut buffer).unwrap();
 
@@ -38,12 +40,11 @@ fn handle_connection(mut stream: TcpStream) {
         ("HTTP/1.1 404 NOT FOUND", contents)
     };
 
-    println!("Request size: {}", buffer_size);
-    println!("Request {}", String::from_utf8_lossy(&buffer[..]));
+    println!("[WORKER-{}] Request size: {}", worker_id, buffer_size);
 
     let response = format!("{}\r\n\r\n{}", status_code, contents);
 
     let write_size = stream.write(response.as_bytes()).unwrap();
-    println!("Response size: {}", write_size);
+    println!("[WORKER-{}] Response size: {}", worker_id, write_size);
     stream.flush().unwrap();
 }
