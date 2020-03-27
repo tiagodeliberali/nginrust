@@ -19,7 +19,7 @@ fn main() {
 
 fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0; 512];
-    stream.read(&mut buffer).unwrap();
+    let buffer_size = stream.read(&mut buffer).unwrap();
 
     let get_index = b"GET / HTTP/1.1\r\n";
     let get_slow = b"GET /slow HTTP/1.1\r\n";
@@ -36,10 +36,12 @@ fn handle_connection(mut stream: TcpStream) {
         ("HTTP/1.1 404 NOT FOUND", contents)
     };
 
+    println!("Request size: {}", buffer_size);
     println!("Request {}", String::from_utf8_lossy(&buffer[..]));
 
     let response = format!("{}\r\n\r\n{}", status_code, contents);
 
-    stream.write(response.as_bytes()).unwrap();
+    let write_size = stream.write(response.as_bytes()).unwrap();
+    println!("Response size: {}", write_size);
     stream.flush().unwrap();
 }
