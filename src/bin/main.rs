@@ -6,25 +6,36 @@ use std::fs;
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
+use std::process;
 use std::thread;
 use std::time::Duration;
-use std::process;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     let pool = Arc::new(Mutex::new(ThreadPool::new(4)));
+    let app_stoped = Arc::new(AtomicBool::new(false));
 
     let clone_pool = Arc::clone(&pool);
+    let clone_app_stoped = Arc::clone(&app_stoped);
     ctrlc::set_handler(move || {
+        {
+            clone_app_stoped.store(true, Ordering::Relaxed)
+        }
+
         println!("\r\n[GLOBAL] Alguem apertou ctrl+c!");
         clone_pool.lock().unwrap().finish();
         process::exit(0);
-    }).expect("Error setting Ctrl-C handler");
+    })
+    .expect("Error setting Ctrl-C handler");
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-
-        if let Err(msg) = pool.lock().unwrap().execute(|worker_id: usize| {
+        println!("[GLOBAL] Recebendo novo request");
+        if app_stoped.load(Ordering::Relaxed) {
+            handle_stoped_connection(stream);
+            continue;
+        } else if let Err(msg) = pool.lock().unwrap().execute(|worker_id: usize| {
             handle_connection(stream, worker_id);
         }) {
             println!("[GLOBAL] Error on thread {}", msg);
@@ -44,7 +55,7 @@ fn handle_connection(mut stream: TcpStream, worker_id: usize) {
         ("HTTP/1.1 200 OK", contents)
     } else if buffer.starts_with(get_slow) {
         let contents = fs::read_to_string("static/slow.html").unwrap();
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(10));
         ("HTTP/1.1 200 OK", contents)
     } else {
         let contents = fs::read_to_string("static/404.html").unwrap();
@@ -57,5 +68,21 @@ fn handle_connection(mut stream: TcpStream, worker_id: usize) {
 
     let write_size = stream.write(response.as_bytes()).unwrap();
     println!("[WORKER-{}] Response size: {}", worker_id, write_size);
+    stream.flush().unwrap();
+}
+
+fn handle_stoped_connection(mut stream: TcpStream) {
+    let mut buffer = [0; 512];
+    let buffer_size = stream.read(&mut buffer).unwrap();
+
+    println!(
+        "[GLOBAL] Request recusada. Estamos encerrando. Size: {}",
+        buffer_size
+    );
+
+    let response = "HTTP/1.1 503 SERVICE UNAVAILABLE\r\n\r\nServer shutting down";
+
+    let write_size = stream.write(response.as_bytes()).unwrap();
+    println!("[GLOBAL] Response size: {}", write_size);
     stream.flush().unwrap();
 }

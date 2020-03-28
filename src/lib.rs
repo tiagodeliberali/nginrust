@@ -1,6 +1,6 @@
+use std::error;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::error;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
@@ -28,7 +28,11 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers, sender, is_shut_down: false }
+        ThreadPool {
+            workers,
+            sender,
+            is_shut_down: false,
+        }
     }
 
     pub fn execute<F>(&self, f: F) -> Result<(), Box<dyn error::Error>>
@@ -36,7 +40,9 @@ impl ThreadPool {
         F: FnOnce(usize) + Send + 'static,
     {
         if self.is_shut_down {
-            return Err(String::from("Servidor está desligando e não aceitamos mais requisições").into());
+            return Err(
+                String::from("Servidor está desligando e não aceitamos mais requisições").into(),
+            );
         }
 
         let job = Box::new(f);
