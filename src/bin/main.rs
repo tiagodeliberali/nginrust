@@ -1,21 +1,41 @@
 extern crate ctrlc;
-use std::sync::{Arc, Mutex};
-
 use nginrust::ThreadPool;
 use std::fs;
 use std::io::prelude::*;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::process;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
     let pool = Arc::new(Mutex::new(ThreadPool::new(4)));
     let app_stoped = Arc::new(AtomicBool::new(false));
 
+    shutdown_on_signal(&pool, &app_stoped);
+
+    for stream in listener.incoming() {
+        println!("[GLOBAL] Recebendo novo request");
+        let stream = stream.unwrap();
+
+        if app_stoped.load(Ordering::Relaxed) {
+            handle_stoped_connection(stream);
+            continue;
+        }
+
+        let result = pool.lock().unwrap().execute(|worker_id: usize| {
+            handle_connection(stream, worker_id);
+        });
+
+        if let Err(msg) = result {
+            println!("[GLOBAL] Error on thread {}", msg);
+        }
+    }
+}
+
+fn shutdown_on_signal(pool: &Arc<Mutex<ThreadPool>>, app_stoped: &Arc<AtomicBool>) {
     let clone_pool = Arc::clone(&pool);
     let clone_app_stoped = Arc::clone(&app_stoped);
     ctrlc::set_handler(move || {
@@ -24,23 +44,10 @@ fn main() {
         }
 
         println!("\r\n[GLOBAL] Alguem apertou ctrl+c!");
-        clone_pool.lock().unwrap().finish();
+        clone_pool.lock().unwrap().shut_down();
         process::exit(0);
     })
     .expect("Error setting Ctrl-C handler");
-
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        println!("[GLOBAL] Recebendo novo request");
-        if app_stoped.load(Ordering::Relaxed) {
-            handle_stoped_connection(stream);
-            continue;
-        } else if let Err(msg) = pool.lock().unwrap().execute(|worker_id: usize| {
-            handle_connection(stream, worker_id);
-        }) {
-            println!("[GLOBAL] Error on thread {}", msg);
-        }
-    }
 }
 
 fn handle_connection(mut stream: TcpStream, worker_id: usize) {

@@ -51,13 +51,14 @@ impl ThreadPool {
         Ok(())
     }
 
-    pub fn finish(&mut self) {
+    pub fn shut_down(&mut self) {
         self.is_shut_down = true;
 
         println!("[GLOBAL] Avisando todo mundo que é para parar...");
         for _ in &self.workers {
             self.sender.send(Message::Terminate).unwrap();
         }
+
         println!("[GLOBAL] Todas mensagens para parar enviadas");
 
         for worker in &mut self.workers {
@@ -72,7 +73,7 @@ impl ThreadPool {
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        self.finish();
+        self.shut_down();
     }
 }
 
