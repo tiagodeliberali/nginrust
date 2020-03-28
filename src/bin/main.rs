@@ -1,3 +1,6 @@
+extern crate ctrlc;
+use std::sync::{Arc, Mutex};
+
 use nginrust::ThreadPool;
 use std::fs;
 use std::io::prelude::*;
@@ -5,20 +8,28 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
+use std::process;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    let pool = ThreadPool::new(4);
+    let pool = Arc::new(Mutex::new(ThreadPool::new(4)));
 
-    for stream in listener.incoming().take(2) {
+    let clone_pool = Arc::clone(&pool);
+    ctrlc::set_handler(move || {
+        println!("\r\n[GLOBAL] Alguem apertou ctrl+c!");
+        clone_pool.lock().unwrap().finish();
+        process::exit(0);
+    }).expect("Error setting Ctrl-C handler");
+
+    for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        pool.execute(|worker_id: usize| {
+        if let Err(msg) = pool.lock().unwrap().execute(|worker_id: usize| {
             handle_connection(stream, worker_id);
-        });
+        }) {
+            println!("[GLOBAL] Error on thread {}", msg);
+        }
     }
-
-    println!("[GLOBAL] Fechando o servidor...");
 }
 
 fn handle_connection(mut stream: TcpStream, worker_id: usize) {

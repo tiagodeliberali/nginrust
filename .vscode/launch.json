@@ -7,15 +7,34 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'nginrust'",
+            "name": "Debug unit tests in library 'nginrust'",
             "cargo": {
                 "args": [
-                    "build",
-                    "--bin=nginrust",
+                    "test",
+                    "--no-run",
+                    "--lib",
                     "--package=nginrust"
                 ],
                 "filter": {
                     "name": "nginrust",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'main'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=main",
+                    "--package=nginrust"
+                ],
+                "filter": {
+                    "name": "main",
                     "kind": "bin"
                 }
             },
@@ -25,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'nginrust'",
+            "name": "Debug unit tests in executable 'main'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=nginrust",
+                    "--bin=main",
                     "--package=nginrust"
                 ],
                 "filter": {
-                    "name": "nginrust",
+                    "name": "main",
                     "kind": "bin"
                 }
             },

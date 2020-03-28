@@ -1,9 +1,11 @@
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use std::error;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Message>,
+    is_shut_down: bool,
 }
 
 type Job = Box<dyn FnOnce(usize) + Send + 'static>;
@@ -26,20 +28,26 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers, sender }
+        ThreadPool { workers, sender, is_shut_down: false }
     }
 
-    pub fn execute<F>(&self, f: F)
+    pub fn execute<F>(&self, f: F) -> Result<(), Box<dyn error::Error>>
     where
         F: FnOnce(usize) + Send + 'static,
     {
+        if self.is_shut_down {
+            return Err(String::from("Servidor está desligando e não aceitamos mais requisições").into());
+        }
+
         let job = Box::new(f);
         self.sender.send(Message::NewJob(job)).unwrap();
-    }
-}
 
-impl Drop for ThreadPool {
-    fn drop(&mut self) {
+        Ok(())
+    }
+
+    pub fn finish(&mut self) {
+        self.is_shut_down = true;
+
         println!("[GLOBAL] Avisando todo mundo que é para parar...");
         for _ in &self.workers {
             self.sender.send(Message::Terminate).unwrap();
@@ -53,6 +61,12 @@ impl Drop for ThreadPool {
             }
             println!("[WORKER-{}] Encerrado.", worker.id);
         }
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        self.finish();
     }
 }
 
