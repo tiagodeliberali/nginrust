@@ -54,19 +54,19 @@ impl ThreadPool {
     pub fn shut_down(&mut self) {
         self.is_shut_down = true;
 
-        println!("[GLOBAL] Avisando todo mundo que é para parar...");
+        // println!("[GLOBAL] Avisando todo mundo que é para parar...");
         for _ in &self.workers {
             self.sender.send(Message::Terminate).unwrap();
         }
 
-        println!("[GLOBAL] Todas mensagens para parar enviadas");
+        // println!("[GLOBAL] Todas mensagens para parar enviadas");
 
         for worker in &mut self.workers {
-            println!("[WORKER-{}] Encerrando o trabalho...", worker.id);
+            // println!("[WORKER-{}] Encerrando o trabalho...", worker.id);
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();
             }
-            println!("[WORKER-{}] Encerrado.", worker.id);
+            // println!("[WORKER-{}] Encerrado.", worker.id);
         }
     }
 }
@@ -89,11 +89,11 @@ impl Worker {
 
             match message {
                 Message::NewJob(job) => {
-                    println!("[WORKER-{}] Eu tenho um trabalho!", id);
+                    // println!("[WORKER-{}] Eu tenho um trabalho!", id);
                     job(id);
                 }
                 Message::Terminate => {
-                    println!("[WORKER-{}] Vou terminar!", id);
+                    // println!("[WORKER-{}] Vou terminar!", id);
                     break;
                 }
             }
